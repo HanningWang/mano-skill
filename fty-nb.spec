@@ -3,10 +3,20 @@
 
 a = Analysis(
     ['visual/vla.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=[
+        'visual',
+        'visual.config.visual_config',
+        'visual.model.task_model',
+        'visual.model.task_progress',
+        'visual.model.task_state',
+        'visual.view.task_overlay_view',
+        'visual.view_model.task_view_model',
+        'visual.computer.computer_action_executor',
+        'visual.computer.computer_use_util',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
