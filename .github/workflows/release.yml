@@ -28,8 +28,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: arch -x86_64 pip install -r requirements.txt pyinstaller
-      - run: arch -x86_64 pyinstaller fty-nb.spec --target-arch x86_64
+      - run: pip install -r requirements.txt pyinstaller
+      - run: arch -x86_64 pyinstaller fty-nb.spec
       - run: tar -czf fty-nb-macos-x86_64.tar.gz -C dist fty-nb
       - uses: actions/upload-artifact@v4
         with:
