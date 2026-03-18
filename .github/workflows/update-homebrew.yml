@@ -1,0 +1,79 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download ${{ github.event.release.tag_name }} \
+            --repo ${{ github.repository }} \
+            --pattern 'fty-nb-macos-arm64.tar.gz' \
+            --pattern 'fty-nb-macos-x86_64.tar.gz' \
+            --pattern 'fty-nb-linux-x86_64.tar.gz'
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          echo "macos_arm64=$(sha256sum fty-nb-macos-arm64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "macos_x86_64=$(sha256sum fty-nb-macos-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "linux_x86_64=$(sha256sum fty-nb-linux-x86_64.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: HanningWang/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update formula
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION_NUM="${VERSION#v}"
+          cat > Formula/fty-nb.rb << 'FORMULA'
+          class FtyNb < Formula
+            desc "VLA Desktop Automation Client"
+            homepage "https://github.com/HanningWang/mano-skill"
+          FORMULA
+
+          cat >> Formula/fty-nb.rb << EOF
+            version "${VERSION_NUM}"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/HanningWang/mano-skill/releases/download/${VERSION}/fty-nb-macos-arm64.tar.gz"
+                sha256 "${{ steps.sha.outputs.macos_arm64 }}"
+              else
+                url "https://github.com/HanningWang/mano-skill/releases/download/${VERSION}/fty-nb-macos-x86_64.tar.gz"
+                sha256 "${{ steps.sha.outputs.macos_x86_64 }}"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/HanningWang/mano-skill/releases/download/${VERSION}/fty-nb-linux-x86_64.tar.gz"
+              sha256 "${{ steps.sha.outputs.linux_x86_64 }}"
+            end
+
+            def install
+              bin.install "fty-nb"
+            end
+
+            test do
+              assert_match "VLA", shell_output("#{bin}/fty-nb --help", 2)
+            end
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/fty-nb.rb
+          git commit -m "Update fty-nb to ${{ github.event.release.tag_name }}"
+          git push
