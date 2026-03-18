@@ -1,0 +1,4 @@
+customtkinter
+mss
+pynput
+requests

@@ -1,0 +1,243 @@
+import platform
+import subprocess
+import time
+from typing import Any, Dict
+
+import mss
+from pynput import mouse, keyboard
+from pynput.keyboard import Key
+from pynput.mouse import Button
+
+from visual.config.visual_config import AUTOMATION_CONFIG
+
+
+class ComputerActionExecutor:
+    """Automation action executor"""
+
+    def __init__(self):
+        with mss.mss() as sct:
+            monitor = sct.monitors[1]
+            actual_width = monitor["width"]
+            actual_height = monitor["height"]
+
+        # Calculate coordinate scaling ratio
+        self.scale_x = actual_width / AUTOMATION_CONFIG["SCREEN_SCALE_WIDTH"]
+        self.scale_y = actual_height / AUTOMATION_CONFIG["SCREEN_SCALE_HEIGHT"]
+
+        # Initialize controllers
+        self.mouse_controller = mouse.Controller()
+        self.keyboard_controller = keyboard.Controller()
+
+    def run_one(self, action: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute single action"""
+        tool_name = action.get("name", "")
+        tool_input = (action.get("input") or {})
+        action = (tool_input.get("action") or "").strip()
+        start_time = time.time()
+
+        try:
+            if tool_name == "open_app":
+                app_name = tool_input.get("app_name", "")
+                if app_name:
+                    self._open_app(app_name)
+                    msg = f"open app {app_name} ok"
+                else:
+                    msg = "Missing app name"
+            elif tool_name == "open_url":
+                url = tool_input.get("url", "")
+                if url:
+                    self._open_url(url)
+                    msg = f"open url {url} ok"
+                else:
+                    msg = "Missing url"
+            elif tool_name == "computer":
+                if action in ("left_click", "right_click", "double_click", "middle_click", "triple_click"):
+                    self._do_click(action, tool_input)
+                    msg = f"{action} ok"
+
+                elif action in ("type",):
+                    text = tool_input.get("text")
+                    self._type_text(text)
+                    msg = f"type {text} ok"
+
+                elif action in ("key",):
+                    self._do_hotkey(tool_input)
+                    msg = f"hotkey ok"
+
+                elif action in ("mouse_move",):
+                    x, y = self._mouse_move(tool_input)
+                    msg = f"mouse_move ({x},{y}) ok"
+
+                elif action in ("left_click_drag",):
+                    start = tool_input.get("start_coordinate")
+                    if start:
+                        sx, sy = self._xy(start)
+                        self.mouse_controller.position = (sx, sy)
+                        time.sleep(0.2)
+                    # Start drag
+                    self.mouse_controller.press(Button.left)
+                    x, y = self._mouse_move(tool_input)
+                    msg = f"drag_to ({x},{y}) ok"
+
+                elif action == "scroll":
+                    self._do_scroll(tool_input)
+                    msg = "scroll ok"
+
+                elif action == "wait":
+                    time.sleep(0.5)
+                    msg = "wait ok"
+
+                elif action == "screenshot":
+                    msg = "screenshot requested"
+
+                elif action in ("done", "finish_task", "fail", "call_user"):
+                    msg = action
+
+                else:
+                    raise ValueError(f"Unknown action: {action}")
+
+            dt = time.time() - start_time
+            return {
+                "ok": action != "fail",
+                "message": msg,
+                "meta": {"action": action, "elapsed_time": dt},
+            }
+
+        except Exception as e:
+            dt = time.time() - start_time
+            return {
+                "ok": False,
+                "message": f"{type(e).__name__}: {e}",
+                "meta": {"action": action, "elapsed_time": dt},
+            }
+
+    def _mouse_move(self, tool_input):
+        """Smooth mouse movement"""
+        coord = tool_input.get("coordinate")
+        dur = tool_input.get("duration") or 0.3
+        x, y = self._xy(coord)
+
+        current_pos = self.mouse_controller.position
+        steps = max(10, int(dur * AUTOMATION_CONFIG["MOUSE_MOVE_STEPS_PER_SEC"]))
+
+        for i in range(steps + 1):
+            t = i / steps
+            new_x = current_pos[0] + (x - current_pos[0]) * t
+            new_y = current_pos[1] + (y - current_pos[1]) * t
+            self.mouse_controller.position = (new_x, new_y)
+            time.sleep(dur / steps)
+        return x, y
+
+    def _do_click(self, action: str, tool_input: Dict[str, Any]):
+        """Execute click operation"""
+        coord = tool_input.get("coordinate")
+        if coord:
+            x, y = self._xy(coord)
+            self.mouse_controller.position = (x, y)
+            time.sleep(AUTOMATION_CONFIG["MOUSE_CLICK_DELAY"])
+
+        mods = tool_input.get("modifiers") or []
+        for k in mods:
+            self.keyboard_controller.press(getattr(Key, k))
+
+        if action == "left_click":
+            self.mouse_controller.click(Button.left)
+        elif action == "right_click":
+            self.mouse_controller.click(Button.right)
+        elif action == "double_click":
+            self.mouse_controller.click(Button.left, 2)
+        elif action == "triple_click":
+            self.mouse_controller.click(Button.left, 3)
+        elif action == "middle_click":
+            self.mouse_controller.click(Button.middle)
+        else:
+            raise ValueError(action)
+
+        for k in reversed(mods):
+            self.keyboard_controller.release(getattr(Key, k))
+
+    def _type_text(self, text: str):
+        """Type text"""
+        self.keyboard_controller.type(text)
+
+    def _do_hotkey(self, tool_input):
+        """Execute hotkey"""
+        mods = tool_input.get("modifiers") or []
+        mains = tool_input.get("mains") or []
+
+        if not mains:
+            return
+
+        for m in mods:
+            self.keyboard_controller.press(getattr(Key, m))
+        time.sleep(AUTOMATION_CONFIG["HOTKEY_DELAY"])
+
+        for k in mains:
+            key_obj = getattr(Key, k) if hasattr(Key, k) else k
+            self.keyboard_controller.press(key_obj)
+            self.keyboard_controller.release(key_obj)
+
+        time.sleep(0.02)
+        for m in reversed(mods):
+            self.keyboard_controller.release(getattr(Key, m))
+
+    def _do_scroll(self, tool_input: Dict[str, Any]):
+        """Execute scroll operation"""
+        direction = tool_input.get("scroll_direction")
+        scroll_amount = tool_input.get("scroll_amount") or 10
+        coord = tool_input.get("coordinate")
+
+        scroll_amount = scroll_amount * AUTOMATION_CONFIG["SCROLL_MULTIPLIER"]
+
+        if coord:
+            x, y = self._xy(coord)
+            self.mouse_controller.position = (x, y)
+            time.sleep(AUTOMATION_CONFIG["MOUSE_CLICK_DELAY"])
+
+        if direction in ("up", "down"):
+            delta_y = scroll_amount if direction == "up" else -scroll_amount
+            self.mouse_controller.scroll(0, delta_y)
+        elif direction in ("left", "right"):
+            delta_x = scroll_amount if direction == "right" else -scroll_amount
+            self.mouse_controller.scroll(delta_x, 0)
+        else:
+            raise ValueError(f"scroll_direction invalid: {direction}")
+
+    def _xy(self, coord):
+        """Convert coordinates to actual screen"""
+        if not (isinstance(coord, (list, tuple)) and len(coord) == 2):
+            raise ValueError(f"coordinate must be [x,y], got {coord}")
+
+        x = int(coord[0] * self.scale_x)
+        y = int(coord[1] * self.scale_y)
+
+        with mss.mss() as sct:
+            primary = sct.monitors[1]
+            x = primary["left"] + x
+            y = primary["top"] + y
+        return x, y
+    
+    def _open_app(self, app_name):
+        """Cross-platform app launcher"""
+        system = platform.system()
+        try:
+            if system == "Darwin":  # macOS
+                subprocess.Popen(["open", "-a", app_name])
+            elif system == "Windows":
+                subprocess.Popen(f'start "" "{app_name}"', shell=True)
+            else:
+                subprocess.Popen([app_name])
+        except Exception as e:
+            raise RuntimeError(f"Failed to open {app_name}: {e}")
+        
+    def _open_url(self, url):
+        system = platform.system()
+        try:
+            if system == "Darwin":
+                subprocess.Popen(["open", url])
+            elif system == "Windows":
+                subprocess.Popen(f'start "" url', shell=True)
+            else:
+                subprocess.Popen(["xdg-open", "https://example.com"])
+        except Exception as e:
+            raise RuntimeError(f"Failed to open {url}: {e}")    
