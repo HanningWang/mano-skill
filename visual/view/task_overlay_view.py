@@ -141,16 +141,19 @@ class TaskOverlayView:
         )
         self.step_label.pack(side="right")
 
-        # Task name label
-        self.task_name_label = ctk.CTkLabel(
+        # Task name textbox (scrollable with max height)
+        self.task_name_label = ctk.CTkTextbox(
             main_frame,
-            text=f"{TEXT_CONSTANTS['TASK_PREFIX']}",
+            height=50,
             font=ctk.CTkFont(size=WINDOW_CONFIG["TITLE_FONT_SIZE"]),
+            fg_color="transparent",
             text_color=WINDOW_CONFIG["TEXT_COLOR"],
-            wraplength=280,
-            justify="left"
+            wrap="word",
+            activate_scrollbars=False
         )
-        self.task_name_label.pack(fill="x", padx=14, pady=(8, 0), anchor="w")
+        self.task_name_label.pack(fill="x", padx=14, pady=(8, 0))
+        self.task_name_label.insert("1.0", f"{TEXT_CONSTANTS['TASK_PREFIX']}")
+        self.task_name_label.configure(state="disabled")
 
         # Log text box
         self.log_text = ctk.CTkTextbox(
@@ -256,7 +259,10 @@ class TaskOverlayView:
 
         try:
             # Update task name
-            self.task_name_label.configure(text=f"{TEXT_CONSTANTS['TASK_PREFIX']}{task_state.task_name}")
+            self.task_name_label.configure(state="normal")
+            self.task_name_label.delete("1.0", "end")
+            self.task_name_label.insert("1.0", f"{TEXT_CONSTANTS['TASK_PREFIX']}{task_state.task_name}")
+            self.task_name_label.configure(state="disabled")
 
             # Update step
             self.step_label.configure(text=f"{TEXT_CONSTANTS['STEP_PREFIX']}{task_state.progress.step_idx}")
