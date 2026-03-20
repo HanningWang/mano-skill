@@ -105,7 +105,7 @@ class TaskModel:
         self.state.status = TASK_STATUS["STOPPED"]
         self.state.is_running = False
         self.stop_event.set()
-        self._print_summary("STOPPED")
+        self._print_summary("STOPPED_BY_USER")
         self._notify_state_changed()
 
     def mark_error(self, error_msg: str):
