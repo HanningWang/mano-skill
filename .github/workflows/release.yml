@@ -120,6 +120,7 @@ jobs:
               (venv/"src").install Dir["visual"]
               (bin/"fty-nb").write <<~SH
                 #!/bin/bash
+                export PYTHONPATH="#{venv}/src"
                 exec "#{venv}/bin/python3" "#{venv}/src/visual/vla.py" "$@"
               SH
             end

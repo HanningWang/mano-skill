@@ -157,8 +157,20 @@ class ComputerActionExecutor:
             self.keyboard_controller.release(getattr(Key, k))
 
     def _type_text(self, text: str):
-        """Type text"""
-        self.keyboard_controller.type(text)
+        """Type text via clipboard paste (avoids input method conflicts)"""
+        system = platform.system()
+        if system == "Darwin":
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        elif system == "Windows":
+            subprocess.run(["clip"], input=text.encode("utf-16le"), check=True)
+        else:
+            subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode("utf-8"), check=True)
+
+        paste_key = Key.cmd if system == "Darwin" else Key.ctrl
+        self.keyboard_controller.press(paste_key)
+        self.keyboard_controller.press("v")
+        self.keyboard_controller.release("v")
+        self.keyboard_controller.release(paste_key)
 
     def _do_hotkey(self, tool_input):
         """Execute hotkey"""
