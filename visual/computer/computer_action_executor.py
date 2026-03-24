@@ -252,7 +252,16 @@ class ComputerActionExecutor:
                 time.sleep(1)
                 self._move_to_primary(app_name)
             elif system == "Windows":
-                subprocess.Popen(f'start "" "{app_name}"', shell=True)
+                result = subprocess.run(
+                    ["powershell", "-Command", f'Start-Process "{app_name}"'],
+                    shell=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode != 0:
+                    print(f"Failed to open '{app_name}': {result.stderr.strip()}")
+                    raise RuntimeError(f"Failed to open '{app_name}': {result.stderr.strip()}")
             else:
                 subprocess.Popen([app_name])
         except Exception as e:

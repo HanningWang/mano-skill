@@ -94,15 +94,20 @@ class TaskOverlayView:
             return
 
         try:
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            # Boundary check: prevent window from going off screen
+            if platform.system() == "Windows":
+                # On Windows, winfo_screenwidth() returns virtual screen (all monitors).
+                # Use ctypes to get primary monitor dimensions.
+                import ctypes
+                user32 = ctypes.windll.user32
+                screen_width = user32.GetSystemMetrics(0)  # SM_CXSCREEN (primary)
+            else:
+                screen_width = self.root.winfo_screenwidth()
+
             x = max(WINDOW_CONFIG["MARGIN"], screen_width - WINDOW_CONFIG["WIDTH"] - WINDOW_CONFIG["MARGIN"])
             y = max(WINDOW_CONFIG["MARGIN"], WINDOW_CONFIG["MARGIN"])
             self.root.geometry(f"{WINDOW_CONFIG['WIDTH']}x{WINDOW_CONFIG['MIN_HEIGHT']}+{x}+{y}")
         except Exception as e:
             print(f"Window positioning failed: {e}")
-            # Fallback position: screen center
             self.root.geometry(f"{WINDOW_CONFIG['WIDTH']}x{WINDOW_CONFIG['MIN_HEIGHT']}+200+200")
 
     def _setup_window_close(self):
