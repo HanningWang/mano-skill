@@ -25,7 +25,7 @@ The server evaluates task complexity in real time and routes accordingly, balanc
 ## Installation
 
 ```bash
-brew tap HanningWang/tap
+brew tap Mininglamp-AI/tap
 brew install mano-cua
 ```
 
