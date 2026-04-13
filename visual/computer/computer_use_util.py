@@ -1,9 +1,5 @@
 import base64
 import os
-import platform
-import shutil
-import subprocess
-import tempfile
 import uuid
 from typing import Any, Dict, Optional
 
@@ -48,61 +44,6 @@ def focus_on_primary_screen():
             primary["left"] + primary["width"] // 2,
             primary["top"] + primary["height"] // 2
         )
-
-def _find_chrome() -> str:
-    """Find Chrome/Chromium binary on the system."""
-    system = platform.system()
-    if system == "Darwin":
-        candidates = [
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-        ]
-    elif system == "Windows":
-        candidates = [
-            os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
-            os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
-            os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-        ]
-    else:  # Linux
-        candidates = []
-
-    for path in candidates:
-        if os.path.isfile(path):
-            return path
-
-    # Fall back to PATH lookup
-    for name in ("google-chrome", "google-chrome-stable", "chromium-browser", "chromium", "chrome"):
-        found = shutil.which(name)
-        if found:
-            return found
-
-    raise RuntimeError(
-        "Chrome/Chromium not found. Install Google Chrome or set its path in PATH."
-    )
-
-
-def capture_web_screenshot(url: str) -> bytes:
-    """Capture a viewport screenshot of a web page using headless Chrome.
-    Returns PNG bytes."""
-    chrome = _find_chrome()
-    tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-    tmp.close()
-
-    try:
-        subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--no-sandbox",
-             f"--screenshot={tmp.name}", "--window-size=1920,1080", url],
-            capture_output=True,
-            timeout=30,
-        )
-        with open(tmp.name, "rb") as f:
-            data = f.read()
-        if not data:
-            raise RuntimeError("Chrome screenshot returned empty output")
-        return data
-    finally:
-        os.unlink(tmp.name)
-
 
 def get_or_create_device_id():
     """Get or create device ID"""

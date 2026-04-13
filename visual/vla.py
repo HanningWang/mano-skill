@@ -15,53 +15,6 @@ import argparse
 import requests
 
 
-def run_vision_test(url: str, expected: str):
-    """Capture a web page screenshot and evaluate it against expected content"""
-    from visual.config.visual_config import BASE_URL
-    from visual.computer.computer_use_util import capture_web_screenshot, b64_png, get_or_create_device_id
-
-    # 1. Capture screenshot
-    print(f"Capturing screenshot of {url}...")
-    try:
-        png_bytes = capture_web_screenshot(url)
-    except Exception as e:
-        print(f"Failed to capture screenshot: {e}")
-        return 1
-
-    screenshot_b64 = b64_png(png_bytes)
-    device_id = get_or_create_device_id()
-
-    # 2. Send to backend for evaluation
-    print("Evaluating screenshot...")
-    try:
-        resp = requests.post(
-            f"{BASE_URL}/v1/vision-test",
-            json={
-                "url": url,
-                "expected": expected,
-                "screenshot_b64": screenshot_b64,
-                "device_id": device_id,
-            },
-            timeout=120,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        print(f"Vision test request failed: {e}")
-        return 1
-
-    # 3. Print result
-    passed = data.get("passed", False)
-    confidence = data.get("confidence_score", 0.0)
-    status = "PASS" if passed else "FAIL"
-    print(f"\n{status} (confidence: {confidence})")
-    print(f"  Content: {data.get('content', '')}")
-    print(f"  Layout:  {data.get('layout', '')}")
-    print(f"  Styling: {data.get('styling', '')}")
-    print(f"  Summary: {data.get('reasoning', '')}")
-    return 0 if passed else 1
-
-
 def stop_session():
     """Stop the current active session for this device"""
     from visual.config.visual_config import BASE_URL
@@ -151,26 +104,15 @@ def run_task(task: str, expected_result: str = None, minimize: bool = False):
 
 def main():
     parser = argparse.ArgumentParser(description="VLA Desktop Automation Client")
-    parser.add_argument("command", choices=["run", "stop", "vision"], help="Command to execute")
+    parser.add_argument("command", choices=["run", "stop"], help="Command to execute")
     parser.add_argument("task", nargs="?", help="Task description (required for 'run')")
     parser.add_argument("--expected-result", help="Expected result description for validation", default=None)
-    parser.add_argument("--url", help="URL to capture (required for 'vision')", default=None)
-    parser.add_argument("--expected", help="Expected content description (required for 'vision')", default=None)
     parser.add_argument("--minimize", help="Start with minimized UI panel", action="store_true", default=False)
 
     args = parser.parse_args()
 
     if args.command == "stop":
         return stop_session()
-
-    if args.command == "vision":
-        if not args.url:
-            print("Error: --url is required for 'vision' command")
-            return 1
-        if not args.expected:
-            print("Error: --expected is required for 'vision' command")
-            return 1
-        return run_vision_test(args.url, args.expected)
 
     if args.command == "run":
         if not args.task:
