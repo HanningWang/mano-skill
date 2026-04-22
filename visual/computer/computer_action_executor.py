@@ -1,3 +1,4 @@
+import os
 import platform
 import subprocess
 import time
@@ -165,7 +166,10 @@ class ComputerActionExecutor:
         """Type text via clipboard paste (avoids input method conflicts)"""
         system = platform.system()
         if system == "Darwin":
-            subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+            env = os.environ.copy()
+            env["LANG"] = "en_US.UTF-8"
+            env["LC_ALL"] = "en_US.UTF-8"
+            subprocess.run(["pbcopy"], input=text.encode("utf-8"), env=env, check=True)
         elif system == "Windows":
             subprocess.run(["clip"], input=text.encode("utf-16le"), check=True)
         else:

@@ -421,6 +421,16 @@ class TaskOverlayView:
             )
             # Auto close after 5 seconds
             self.root.after(5000, self._auto_close)
+        elif status == TASK_STATUS["MAX_STEP_REACHED"]:
+            self.status_label.configure(text="Max Steps ⏹")
+            self._switch_to_single_button()
+            self.stop_button.configure(
+                text=TEXT_CONSTANTS["CLOSE_BUTTON_TEXT"],
+                command=self.on_close_command,
+                state="normal"
+            )
+            # Auto close after 5 seconds
+            self.root.after(5000, self._auto_close)
         elif status == TASK_STATUS["ERROR"]:
             self.status_label.configure(text=TEXT_CONSTANTS["ERROR_TEXT"])
             if error_msg:

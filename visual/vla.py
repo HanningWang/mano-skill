@@ -41,7 +41,7 @@ def stop_session():
         return 1
 
 
-def run_task(task: str, expected_result: str = None, minimize: bool = False):
+def run_task(task: str, expected_result: str = None, minimize: bool = False, max_steps: int = None):
     """Run an automation task"""
     from visual.config.visual_config import BASE_URL, AUTOMATION_CONFIG, API_HEADERS
     from visual.computer.computer_use_util import get_or_create_device_id
@@ -88,10 +88,10 @@ def run_task(task: str, expected_result: str = None, minimize: bool = False):
         view_model.view.root.after(200, view_model.view._toggle_minimize)
 
     # Initialize task with existing session_id
-    if not view_model.init_task(task, BASE_URL, expected_result=expected_result, session_id=session_id):
+    if not view_model.init_task(task, BASE_URL, expected_result=expected_result, session_id=session_id, max_steps=max_steps):
         print("Failed to initialize visualization overlay.")
         # Run task directly without UI
-        view_model.model.init_task(task, BASE_URL, expected_result=expected_result, session_id=session_id)
+        view_model.model.init_task(task, BASE_URL, expected_result=expected_result, session_id=session_id, max_steps=max_steps)
         view_model.model.run_automation_task()
         return 0 if view_model.model.state.status == "completed" else 1
 
@@ -108,6 +108,7 @@ def main():
     parser.add_argument("task", nargs="?", help="Task description (required for 'run')")
     parser.add_argument("--expected-result", help="Expected result description for validation", default=None)
     parser.add_argument("--minimize", help="Start with minimized UI panel", action="store_true", default=False)
+    parser.add_argument("--max-steps", help="Maximum number of steps before auto-closing", type=int, default=60)
 
     args = parser.parse_args()
 
@@ -118,7 +119,7 @@ def main():
         if not args.task:
             print("Error: task is required for 'run' command")
             return 1
-        return run_task(args.task, args.expected_result, minimize=args.minimize)
+        return run_task(args.task, args.expected_result, minimize=args.minimize, max_steps=args.max_steps)
 
     return 1
 

@@ -1,23 +1,40 @@
 import platform as _platform
+import subprocess as _subprocess
 
 BASE_URL = "https://mano.mininglamp.com"
 
 # Client version — keep in sync with brew formula
-CLIENT_VERSION = "1.0.5"
+CLIENT_VERSION = "1.0.8"
+
+def _get_chip_model() -> str:
+    """Get Apple chip model (e.g. 'Apple M4 Pro') on macOS, empty string otherwise."""
+    try:
+        result = _subprocess.run(
+            ["sysctl", "-n", "machdep.cpu.brand_string"],
+            capture_output=True, text=True, timeout=2
+        )
+        chip = result.stdout.strip()
+        return chip if chip.startswith("Apple") else ""
+    except Exception:
+        return ""
 
 def build_user_agent() -> str:
-    """Build User-Agent: mano-cua/1.0.5 (macOS 26.3; arm64) Python/3.13.5"""
+    """Build User-Agent: mano-cua/1.0.5 (macOS 26.3; arm64; Apple M4 Pro) Python/3.13.5"""
     os_ver = _platform.mac_ver()[0] or _platform.release()
     arch = _platform.machine()
     py_ver = _platform.python_version()
     system = _platform.system()
     if system == "Darwin":
+        chip = _get_chip_model()
+        chip_tag = f"; {chip}" if chip else ""
         os_tag = f"macOS {os_ver}"
     elif system == "Windows":
         os_tag = f"Windows NT {os_ver}"
+        chip_tag = ""
     else:
         os_tag = f"{system} {os_ver}"
-    return f"mano-cua/{CLIENT_VERSION} ({os_tag}; {arch}) Python/{py_ver}"
+        chip_tag = ""
+    return f"mano-cua/{CLIENT_VERSION} ({os_tag}; {arch}{chip_tag}) Python/{py_ver}"
 
 API_HEADERS = {"User-Agent": build_user_agent()}
 # Keep existing window/animation/text configurations unchanged
@@ -70,7 +87,8 @@ TASK_STATUS = {
     "STOPPED": "stopped",
     "ERROR": "error",
     "CALL_USER": "call_user",
-    "EVALUATING": "evaluating"
+    "EVALUATING": "evaluating",
+    "MAX_STEP_REACHED": "max_step_reached"
 }
 
 # ========== New: Automation Business Configuration ==========

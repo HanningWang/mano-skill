@@ -32,6 +32,7 @@ class TaskModel:
         self.executor: Optional[ComputerActionExecutor] = None
         self.server_url = AUTOMATION_CONFIG["BASE_URL"]
         self.expected_result = None
+        self.max_steps = None
         self.eval_result = None
 
     # ========== Data Monitoring ==========
@@ -45,11 +46,12 @@ class TaskModel:
             self._on_state_changed(self.state)
 
     # ========== Initialization Methods ==========
-    def init_task(self, task_name: str, server_url: Optional[str] = None, expected_result: Optional[str] = None, session_id: Optional[str] = None):
+    def init_task(self, task_name: str, server_url: Optional[str] = None, expected_result: Optional[str] = None, session_id: Optional[str] = None, max_steps: int = None):
         """Initialize automation task"""
         # Basic configuration
         self.state.task_name = task_name
         self.expected_result = expected_result
+        self.max_steps = max_steps
         self.state.status = TASK_STATUS["RUNNING"]
         self.state.is_running = True
         self.state.error_msg = None
@@ -205,7 +207,19 @@ class TaskModel:
             # 2. Execute task step loop
             self._execute_task_steps()
 
-            # 3. Normal completion
+            # 3. Max steps reached
+            if self.state.status == TASK_STATUS["MAX_STEP_REACHED"]:
+                self.state.is_running = False
+                self.stop_event.set()
+                self._print_summary("MAX_STEP_REACHED")
+                self._notify_state_changed()
+                skip = not bool(self.expected_result)
+                if not skip:
+                    self._mark_evaluating()
+                self._close_session(close_reason="MAX_STEP_REACHED", skip_eval=skip)
+                return
+
+            # 4. Normal completion
             if self.state.is_running and self.state.status != TASK_STATUS["ERROR"]:
                 if self.expected_result:
                     self._mark_evaluating()
@@ -338,14 +352,22 @@ class TaskModel:
 
             step_idx += 1
 
-    def _close_session(self, skip_eval: bool = False):
+            if self.max_steps is not None and step_idx >= self.max_steps:
+                print(f"Max steps ({self.max_steps}) reached, stopping task")
+                self.state.status = TASK_STATUS["MAX_STEP_REACHED"]
+                break
+
+    def _close_session(self, skip_eval: bool = False, close_reason: str = None):
         """Close server session"""
         if not self.state.session_id:
             return
 
         try:
+            params = f"skip_eval={str(skip_eval).lower()}"
+            if close_reason:
+                params += f"&close_reason={close_reason}"
             resp = requests.post(
-                f"{self.server_url}/v1/sessions/{self.state.session_id}/close?skip_eval={str(skip_eval).lower()}",
+                f"{self.server_url}/v1/sessions/{self.state.session_id}/close?{params}",
                 json={},
                 timeout=AUTOMATION_CONFIG["CLOSE_SESSION_TIMEOUT"]
             )
