@@ -306,6 +306,8 @@ class TaskModel:
                 break
 
             # 7. Update UI progress
+            if status == "MAX_STEP_REACHED":
+                action_desc = "Max steps reached"
             self.update_progress(step_idx, action_desc, reasoning)
 
             # 8. Handle terminal status
@@ -313,6 +315,9 @@ class TaskModel:
                 break
             elif status == "FAIL":
                 self.mark_error("Server marked task as failed")
+                break
+            elif status == "MAX_STEP_REACHED":
+                self.state.status = TASK_STATUS["MAX_STEP_REACHED"]
                 break
             elif status == "CALL_USER":
                 self.mark_call_user()
